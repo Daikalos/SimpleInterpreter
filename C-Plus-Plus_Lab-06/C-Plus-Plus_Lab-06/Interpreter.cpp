@@ -17,17 +17,16 @@ void Interpreter::evaluate(const std::vector<std::string>& tokens)
     this->tokens = tokens; // Current tokens to evaluate
     position = 0;
 
-    while (position < tokens.size())
+    while (position < this->tokens.size())
     {
         std::string token = peek();
 
         if (stmts.find(token) != stmts.end()) // If this token is a valid statement
         {
             stmts[token]();
-            continue;
         }
-        
-        consume(token); // If not a statement, consume current token
+        else
+            consume(token); // If not a statement, consume current token
     }
 }
 
@@ -50,7 +49,7 @@ void Interpreter::consume(const std::string& token)
     if (next_token.empty())
         throw std::runtime_error("Consumed past last token\n");
     if (next_token != token)
-        throw std::runtime_error("Could not consume token " + token + "\n");
+        throw std::runtime_error("Could not consume token '" + token + "'\n");
 
     ++position;
 }
@@ -60,7 +59,7 @@ void Interpreter::parse_ConfigStmt()
     consume("config");
 
     std::string next_token = peek();
-    if (next_token == "dec" || next_token == "hex" || next_token == "bin")
+    if (configs.find(next_token) != configs.end())
     {
         config = configs[next_token];
         consume(next_token);
@@ -70,9 +69,11 @@ void Interpreter::parse_AssgStmt()
 {
     consume("=");
 
-    std::string name = peek(-2);
+    std::string name = peek(-2); // Variable name is two steps back
     if (is_variable_name(name))
         variables[name] = parse_MathExp();
+    else
+        throw std::runtime_error("variable name '" + name + "' is not allowed\n");
 }
 void Interpreter::parse_PrintStmt()
 {
@@ -91,7 +92,7 @@ void Interpreter::parse_PrintStmt()
         out_stream << std::bitset<32>(val).to_string() << '\n'; 
         return;
     default:
-        out_stream << "configuration is undefined" << '\n';
+        throw std::runtime_error("configuration is undefined\n");
         return;
     }
 }
@@ -158,23 +159,40 @@ int Interpreter::parse_PrimaryExp()
         val = std::stoi(next_token);
         consume(next_token);
     }
-    else if (variables.find(next_token) != variables.end())
+    else if (is_variable_name(next_token))
     {
-        val = variables[next_token];
-        consume(next_token);
+        if (variables.find(next_token) != variables.end())
+        {
+            val = variables[next_token];
+            consume(next_token);
+        }
+        else
+            throw std::runtime_error("variable '" + next_token + "' is not defined\n");
     }
-    else if (next_token == "(")
+    else if (next_token == "(") // If paranthesis, evaluate the value within until enclosing paranthesis is read
     {
         consume("(");
+
         val = parse_MathExp();
 
-        if (peek() == ")") 
+        if (peek() == ")")
             consume(")");
         else
-            throw std::runtime_error("no enclosing paranthesis found");
+            throw std::runtime_error("no enclosing paranthesis found\n");
     }
+    else
+        throw std::runtime_error("the given expression: '" + next_token  + "' is not valid\n");
 
     return val;
+}
+
+bool Interpreter::is_integer(const std::string& token)
+{
+    return std::regex_match(token, std::regex("-?[0-9]+"));
+}
+bool Interpreter::is_variable_name(const std::string& token)
+{
+    return std::regex_match(token, std::regex("[a-zA-z][a-zA-z0-9]*"));
 }
 
 void Interpreter::tokenize(std::queue<std::string>& codeLines)
@@ -185,7 +203,7 @@ void Interpreter::tokenize(std::queue<std::string>& codeLines)
 
         std::string line = codeLines.front();
         std::string stmt = std::string();
-        
+
         for (const char& c : line)
         {
             if (c == ' ')
@@ -199,21 +217,11 @@ void Interpreter::tokenize(std::queue<std::string>& codeLines)
             }
         }
         tokens.push_back(stmt);
-        
+
         evaluate(tokens);
 
         codeLines.pop();
     }
-}
-
-bool Interpreter::is_integer(const std::string& token)
-{
-    return std::regex_match(token, std::regex("-?[0-9]+"));
-}
-
-bool Interpreter::is_variable_name(const std::string& token)
-{
-    return std::regex_match(token, std::regex("[a-zA-z][a-zA-z0-9]*"));
 }
 
 void Interpreter::read_stream(std::istream& in_stream)
@@ -257,7 +265,7 @@ void Interpreter::read_file(const std::string& filename)
     }
     else
     {
-        std::cout << "Unable to open file";
+        out_stream << "unable to open file" << '\n';
     }
 
     tokenize(codeLines);

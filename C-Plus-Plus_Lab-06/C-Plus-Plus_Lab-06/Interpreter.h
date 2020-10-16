@@ -53,15 +53,12 @@ private:
 private:
 	std::ostream& out_stream;
 
-	std::vector<std::string> tokens;
-
-	std::map<std::string, int> variables;
-
 	ConfigType config;
 	std::unordered_map<std::string, ConfigType> configs;
-
 	std::unordered_map<std::string, std::function<void()>> stmts;
+	std::map<std::string, int> variables;
 
+	std::vector<std::string> tokens;
 	int position;
 
 private: // Not Interesting, placed bottom

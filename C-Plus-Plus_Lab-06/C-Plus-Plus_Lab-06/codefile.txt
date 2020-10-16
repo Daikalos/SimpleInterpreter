@@ -12,3 +12,6 @@ config hex
 print z
 config bin
 print z
+config dec
+w = ( ( x + y ) + -3 ) / 3
+print ( w + z ) / x
