@@ -1,33 +1,29 @@
 #include "Interpreter.h"
 
 Interpreter::Interpreter(std::ostream& out_stream) 
-    : out_stream(out_stream), config(ConfigType::Dec), position(0)
+    : out_stream(out_stream), setting(ConfigType::Dec), position(0)
 {
-    configs["dec"] = ConfigType::Dec;
-    configs["hex"] = ConfigType::Hex;
-    configs["bin"] = ConfigType::Bin;
-    
-    stmts["config"] = std::bind(&Interpreter::parse_ConfigStmt, this);
-    stmts["="]      = std::bind(&Interpreter::parse_AssgStmt, this);
-    stmts["print"]  = std::bind(&Interpreter::parse_PrintStmt, this);
+    configs.emplace("dec", ConfigType::Dec);
+    configs.emplace("hex", ConfigType::Hex);
+    configs.emplace("bin", ConfigType::Bin);
+
+    stmts.emplace("config", std::bind(&Interpreter::parse_ConfigStmt, this));
+    stmts.emplace("=",      std::bind(&Interpreter::parse_AssgStmt, this));
+    stmts.emplace("print",  std::bind(&Interpreter::parse_PrintStmt, this));
 }
 
 void Interpreter::evaluate(const std::vector<std::string>& tokens)
 {
     this->tokens = tokens; // Current tokens to evaluate
+
     position = 0;
+    var_name = "";
 
-    while (position < this->tokens.size())
-    {
-        std::string token = peek();
-
-        if (stmts.find(token) != stmts.end()) // If this token is a valid statement
-        {
-            stmts[token]();
-        }
-        else
-            consume(token); // If not a statement, consume current token
-    }
+    std::string stmt = parse_Stmt();
+    if (!stmt.empty())
+        stmts[stmt]();
+    else
+        throw std::runtime_error("not a valid statement, expected: config, = or print\n");
 }
 
 std::string Interpreter::peek()
@@ -38,6 +34,9 @@ std::string Interpreter::peek(int steps)
 {
     if (position + steps >= tokens.size())
         return "\u0003"; // End of text
+
+    if (position - steps < 0)
+        throw std::out_of_range(steps + " is out of range");
 
     return tokens[position + steps];
 }
@@ -54,46 +53,60 @@ void Interpreter::consume(const std::string& token)
     ++position;
 }
 
+std::string Interpreter::parse_Stmt()
+{
+    std::string next_token = peek();
+    if (is_variable(next_token))
+    {
+        consume(next_token);
+        if (peek() == "=")
+        {
+            var_name = next_token;
+
+            consume("=");
+            return "=";
+        }
+        else if (next_token == "config")
+            return "config";
+        else if (next_token == "print")
+            return "print";
+    }
+    else
+        throw std::runtime_error("syntax error\n");
+
+    return std::string();
+}
 void Interpreter::parse_ConfigStmt()
 {
-    consume("config");
-
     std::string next_token = peek();
     if (configs.find(next_token) != configs.end())
     {
-        config = configs[next_token];
         consume(next_token);
+        setting = configs[next_token];
     }
+    else
+        throw std::runtime_error("not a valid configuration setting, expected: dec, hex or bin\n");
 }
 void Interpreter::parse_AssgStmt()
 {
-    consume("=");
+    if (var_name.empty())
+        throw std::runtime_error("variable name is not set\n");
 
-    std::string name = peek(-2); // Variable name is two steps back
-    if (is_variable_name(name))
-        variables[name] = parse_MathExp();
-    else
-        throw std::runtime_error("variable name '" + name + "' is not allowed\n");
+    variables[var_name] = parse_MathExp();
 }
 void Interpreter::parse_PrintStmt()
 {
-    consume("print");
-    
     int val = parse_MathExp();
-    switch (config)
+    switch (setting)
     {
-    case ConfigType::Dec: 
-        out_stream << std::dec << val << '\n';                              
+    case ConfigType::Dec: out_stream << std::dec << val << '\n';                              
         return;
-    case ConfigType::Hex: 
-        out_stream << "0x" << std::hex << val << '\n';                  
+    case ConfigType::Hex: out_stream << "0x" << std::hex << val << '\n';                  
         return;
-    case ConfigType::Bin: 
-        out_stream << std::bitset<32>(val).to_string() << '\n'; 
+    case ConfigType::Bin: out_stream << std::bitset<32>(val).to_string() << '\n'; 
         return;
     default:
         throw std::runtime_error("configuration is undefined\n");
-        return;
     }
 }
 
@@ -118,7 +131,8 @@ int Interpreter::parse_SumExp()
             consume("-");
             val -= parse_ProductExp();
         }
-        else break;
+        else 
+            break;
 
         next_token = peek();
     }
@@ -142,7 +156,8 @@ int Interpreter::parse_ProductExp()
             consume("/");
             val /= parse_PrimaryExp();
         }
-        else break;
+        else 
+            break;
 
         next_token = peek();
     }
@@ -156,18 +171,13 @@ int Interpreter::parse_PrimaryExp()
 
     if (is_integer(next_token))
     {
-        val = std::stoi(next_token);
         consume(next_token);
+        val = std::stoi(next_token);
     }
-    else if (is_variable_name(next_token))
+    else if (is_variable(next_token))
     {
-        if (variables.find(next_token) != variables.end())
-        {
-            val = variables[next_token];
-            consume(next_token);
-        }
-        else
-            throw std::runtime_error("variable '" + next_token + "' is not defined\n");
+        consume(next_token);
+        val = get_variable(next_token);
     }
     else if (next_token == "(") // If paranthesis, evaluate the value within until enclosing paranthesis is read
     {
@@ -190,9 +200,17 @@ bool Interpreter::is_integer(const std::string& token)
 {
     return std::regex_match(token, std::regex("-?[0-9]+"));
 }
-bool Interpreter::is_variable_name(const std::string& token)
+bool Interpreter::is_variable(const std::string& token)
 {
     return std::regex_match(token, std::regex("[a-zA-z][a-zA-z0-9]*"));
+}
+
+int Interpreter::get_variable(const std::string& name)
+{
+    if (variables.find(name) != variables.end())
+        return variables[name];
+    else
+        throw std::runtime_error("variable '" + name + "' is not defined\n");
 }
 
 void Interpreter::tokenize(std::queue<std::string>& codeLines)
@@ -264,9 +282,7 @@ void Interpreter::read_file(const std::string& filename)
         file.close();
     }
     else
-    {
-        out_stream << "unable to open file" << '\n';
-    }
+        throw std::runtime_error("unable to open file\n");
 
     tokenize(codeLines);
 }

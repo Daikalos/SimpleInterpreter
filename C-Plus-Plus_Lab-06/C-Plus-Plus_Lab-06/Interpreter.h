@@ -27,10 +27,9 @@ public:
 	void read_stream(std::istream& in_stream);
 	void read_file(const std::string& filename);
 
-private:
+private:	
 	void tokenize(std::queue<std::string>& codeLines);
 
-private:	
 	void evaluate(const std::vector<std::string>& tokens);
 
 	std::string peek();
@@ -38,6 +37,7 @@ private:
 
 	void consume(const std::string& token);
 
+	std::string parse_Stmt();
 	void parse_ConfigStmt();
 	void parse_AssgStmt();
 	void parse_PrintStmt();
@@ -48,20 +48,25 @@ private:
 	int parse_PrimaryExp();
 
 	bool is_integer(const std::string& token);
-	bool is_variable_name(const std::string& token);
+	bool is_variable(const std::string& token);
+
+	int get_variable(const std::string& name);
 
 private:
 	std::ostream& out_stream;
 
-	ConfigType config;
-	std::unordered_map<std::string, ConfigType> configs;
+	std::vector<std::string> tokens;
+	size_t position;
+
 	std::unordered_map<std::string, std::function<void()>> stmts;
+
+	ConfigType setting;
+	std::unordered_map<std::string, ConfigType> configs;
+
+	std::string var_name; // Current evaluated variable that is to be assigned a value
 	std::map<std::string, int> variables;
 
-	std::vector<std::string> tokens;
-	int position;
-
-private: // Not Interesting, placed bottom
+private:
 	Interpreter(const Interpreter& rhs) = delete;
 	Interpreter& operator=(const Interpreter& rhs) = delete;
 };
