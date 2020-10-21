@@ -11,7 +11,7 @@
 #include <unordered_map>
 #include <map>
 
-enum class ConfigType
+enum class Config
 {
 	Dec,
 	Hex,
@@ -37,7 +37,7 @@ private:
 
 	void consume(const std::string& token);
 
-	std::string parse_Stmt();
+	void parse_Stmt();
 	void parse_ConfigStmt();
 	void parse_AssgStmt();
 	void parse_PrintStmt();
@@ -55,13 +55,11 @@ private:
 private:
 	std::ostream& out_stream;
 
-	std::vector<std::string> tokens;
 	size_t position;
+	std::vector<std::string> tokens;
 
-	std::unordered_map<std::string, std::function<void()>> stmts;
-
-	ConfigType setting;
-	std::unordered_map<std::string, ConfigType> configs;
+	Config setting;
+	std::unordered_map<std::string, Config> configs;
 
 	std::string var_name; // Current evaluated variable that is to be assigned a value
 	std::map<std::string, int> variables;

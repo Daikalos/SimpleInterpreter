@@ -1,15 +1,11 @@
 #include "Interpreter.h"
 
 Interpreter::Interpreter(std::ostream& out_stream) 
-    : out_stream(out_stream), setting(ConfigType::Dec), position(0)
+    : out_stream(out_stream), setting(Config::Dec), position(0)
 {
-    configs.emplace("dec", ConfigType::Dec);
-    configs.emplace("hex", ConfigType::Hex);
-    configs.emplace("bin", ConfigType::Bin);
-
-    stmts.emplace("config", std::bind(&Interpreter::parse_ConfigStmt, this));
-    stmts.emplace("=",      std::bind(&Interpreter::parse_AssgStmt, this));
-    stmts.emplace("print",  std::bind(&Interpreter::parse_PrintStmt, this));
+    configs.emplace("dec", Config::Dec);
+    configs.emplace("hex", Config::Hex);
+    configs.emplace("bin", Config::Bin);
 }
 
 void Interpreter::evaluate(const std::vector<std::string>& tokens)
@@ -19,11 +15,14 @@ void Interpreter::evaluate(const std::vector<std::string>& tokens)
     position = 0;
     var_name = "";
 
-    std::string stmt = parse_Stmt();
-    if (!stmt.empty())
-        stmts[stmt]();
-    else
-        throw std::runtime_error("not a valid statement, expected: config, = or print\n");
+    try
+    {
+        parse_Stmt();
+    }
+    catch (std::exception exception)
+    {
+        std::cout << exception.what() << std::endl;
+    }
 }
 
 std::string Interpreter::peek()
@@ -36,7 +35,7 @@ std::string Interpreter::peek(int steps)
         return "\u0003"; // End of text
 
     if (position - steps < 0)
-        throw std::out_of_range(steps + " is out of range");
+        throw std::out_of_range(steps + " is out of range\n");
 
     return tokens[position + steps];
 }
@@ -53,7 +52,7 @@ void Interpreter::consume(const std::string& token)
     ++position;
 }
 
-std::string Interpreter::parse_Stmt()
+void Interpreter::parse_Stmt()
 {
     std::string next_token = peek();
     if (is_variable(next_token))
@@ -64,17 +63,17 @@ std::string Interpreter::parse_Stmt()
             var_name = next_token;
 
             consume("=");
-            return "=";
+            parse_AssgStmt();
         }
         else if (next_token == "config")
-            return "config";
+            parse_ConfigStmt();
         else if (next_token == "print")
-            return "print";
+            parse_PrintStmt();
+        else
+            throw std::runtime_error("'" + next_token + " is not a valid statement; expected: config, = or print\n");
     }
     else
         throw std::runtime_error("syntax error\n");
-
-    return std::string();
 }
 void Interpreter::parse_ConfigStmt()
 {
@@ -85,12 +84,12 @@ void Interpreter::parse_ConfigStmt()
         setting = configs[next_token];
     }
     else
-        throw std::runtime_error("not a valid configuration setting, expected: dec, hex or bin\n");
+        throw std::runtime_error("'" + next_token + "' is not a valid configuration setting; expected: dec, hex or bin\n");
 }
 void Interpreter::parse_AssgStmt()
 {
     if (var_name.empty())
-        throw std::runtime_error("variable name is not set\n");
+        throw std::runtime_error("variable name is undefined\n");
 
     variables[var_name] = parse_MathExp();
 }
@@ -99,11 +98,11 @@ void Interpreter::parse_PrintStmt()
     int val = parse_MathExp();
     switch (setting)
     {
-    case ConfigType::Dec: out_stream << std::dec << val << '\n';                              
+    case Config::Dec: out_stream << std::dec << val << '\n';                              
         return;
-    case ConfigType::Hex: out_stream << "0x" << std::hex << val << '\n';                  
+    case Config::Hex: out_stream << "0x" << std::hex << val << '\n';                  
         return;
-    case ConfigType::Bin: out_stream << std::bitset<32>(val).to_string() << '\n'; 
+    case Config::Bin: out_stream << std::bitset<32>(val).to_string() << '\n'; 
         return;
     default:
         throw std::runtime_error("configuration is undefined\n");
