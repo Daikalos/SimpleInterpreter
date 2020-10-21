@@ -27,9 +27,12 @@ public:
 	void read_stream(std::istream& in_stream);
 	void read_file(const std::string& filename);
 
-private:	
+	void clear();
+
+private:
 	void tokenize(std::queue<std::string>& codeLines);
 
+private:	
 	void evaluate(const std::vector<std::string>& tokens);
 
 	std::string peek();

@@ -2,12 +2,16 @@
 
 int main()
 {
-	Interpreter intrpr(std::cout);
+	Interpreter interp(std::cout);
 
-	intrpr.read_file("codefile.txt");
+	interp.read_file("codefile.txt");
 	std::cin.get();
 
-	intrpr.read_stream(std::cin);
+	interp.clear(); // Reset all private members to prevent leakage
+
+	std::cout << "type code for interpreter; type EOF to stop\n\n";
+
+	interp.read_stream(std::cin);
 	std::cin.get();
 
 	return 0;

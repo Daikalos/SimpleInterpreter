@@ -8,6 +8,12 @@ Interpreter::Interpreter(std::ostream& out_stream)
     configs.emplace("bin", Config::Bin);
 }
 
+void Interpreter::clear()
+{
+    variables.clear();
+    setting = Config::Dec;
+}
+
 void Interpreter::evaluate(const std::vector<std::string>& tokens)
 {
     this->tokens = tokens; // Current tokens to evaluate
@@ -21,7 +27,7 @@ void Interpreter::evaluate(const std::vector<std::string>& tokens)
     }
     catch (std::exception exception)
     {
-        std::cout << exception.what() << std::endl;
+        std::cout << exception.what();
     }
 }
 
@@ -84,7 +90,7 @@ void Interpreter::parse_ConfigStmt()
         setting = configs[next_token];
     }
     else
-        throw std::runtime_error("'" + next_token + "' is not a valid configuration setting; expected: dec, hex or bin\n");
+        throw std::runtime_error("'" + next_token + "' is not a valid configuration; expected: dec, hex or bin\n");
 }
 void Interpreter::parse_AssgStmt()
 {
@@ -178,7 +184,7 @@ int Interpreter::parse_PrimaryExp()
         consume(next_token);
         val = get_variable(next_token);
     }
-    else if (next_token == "(") // If paranthesis, evaluate the value within until enclosing paranthesis is read
+    else if (next_token == "(")
     {
         consume("(");
 
@@ -223,19 +229,23 @@ void Interpreter::tokenize(std::queue<std::string>& codeLines)
 
         for (const char& c : line)
         {
-            if (c == ' ')
+            if (c == ' ' && !stmt.empty())
             {
                 tokens.push_back(stmt);
                 stmt = std::string();
             }
             else
             {
-                stmt += c;
+                if (c != ' ')
+                    stmt += c;
             }
         }
-        tokens.push_back(stmt);
 
-        evaluate(tokens);
+        if (!stmt.empty())
+            tokens.push_back(stmt);
+
+        if (!tokens.empty())
+            evaluate(tokens);
 
         codeLines.pop();
     }
@@ -249,7 +259,10 @@ void Interpreter::read_stream(std::istream& in_stream)
     while (true)
     {
         if (getline(in_stream, line))
-            codeLines.push(line);
+        {
+            if (!line.empty())
+                codeLines.push(line);
+        }
 
         if (in_stream.eof())
             break;
@@ -263,7 +276,8 @@ void Interpreter::read_stream(std::istream& in_stream)
         }
     }
 
-    tokenize(codeLines);
+    if (!tokens.empty())
+        tokenize(codeLines);
 }
 void Interpreter::read_file(const std::string& filename)
 {
